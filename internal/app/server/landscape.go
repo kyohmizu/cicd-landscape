@@ -1,10 +1,13 @@
 package main
 
 import (
+	"fmt"
 	"github.com/kyohmizu/cicd-landscape/internal/pkg/common"
+	"github.com/tidwall/gjson"
 	"gopkg.in/yaml.v2"
 	"io/ioutil"
 	"net/http"
+	"strings"
 )
 
 const (
@@ -12,6 +15,9 @@ const (
 )
 
 var client http.Client
+
+// パフォーマンス改善、GitHub API のレートリミット対策としてキャッシュ
+var stars map[string]int64
 
 type LandScape struct {
 	Landscape []struct {
@@ -22,13 +28,13 @@ type LandScape struct {
 			Name        string
 			Items       []struct {
 				Extra struct {
-					Accepted    string
-					DevStatsUrl string `yaml:"dev_stats_url"`
-					ArtworkUrl  string `yaml:"artwork_url"`
+					Accepted         string
+					DevStatsUrl      string `yaml:"dev_stats_url"`
+					ArtworkUrl       string `yaml:"artwork_url"`
 					StackOverflowUrl string `yaml:"stack_overflow_url"`
-					BlogUrl string `yaml:"blog_url"`
-					SlackUrl string `yaml:"slack_url"`
-					YoutubeUrl string `yaml:"youtube_url"`
+					BlogUrl          string `yaml:"blog_url"`
+					SlackUrl         string `yaml:"slack_url"`
+					YoutubeUrl       string `yaml:"youtube_url"`
 				}
 				Name        string
 				Description string
@@ -52,11 +58,11 @@ func getCicdProjects() ([]Project, error) {
 	defer resp.Body.Close()
 
 	if resp.StatusCode == http.StatusOK {
-		bodyBytes, err := ioutil.ReadAll(resp.Body)
+		b, err := ioutil.ReadAll(resp.Body)
 		if err != nil {
 			return nil, err
 		}
-		return findCicdProjects(bodyBytes)
+		return findCicdProjects(b)
 	}
 	return nil, nil
 }
@@ -69,6 +75,7 @@ func findCicdProjects(data []byte) ([]Project, error) {
 		return nil, err
 	}
 
+	ml := getMemberList(l)
 	for _, category := range l.Landscape {
 		if category.Name == "App Definition and Development" {
 			for _, sub := range category.Subcategories {
@@ -79,9 +86,10 @@ func findCicdProjects(data []byte) ([]Project, error) {
 							Name:        proj.Name,
 							Description: proj.Description,
 							HomepageUrl: proj.HomepageUrl,
-							Project:     proj.Project,
+							Project:     getProject(proj.Project, proj.Crunchbase, ml),
 							RepoUrl:     proj.RepoUrl,
 							Crunchbase:  proj.Crunchbase,
+							StarCount:   getStarCount(proj.RepoUrl),
 						})
 					}
 					return list, nil
@@ -90,4 +98,59 @@ func findCicdProjects(data []byte) ([]Project, error) {
 		}
 	}
 	return nil, nil
+}
+
+func getMemberList(l LandScape) map[string]bool {
+	ml := make(map[string]bool)
+	for _, category := range l.Landscape {
+		if category.Name == "CNCF Members" {
+			for _, sub := range category.Subcategories {
+				for _, proj := range sub.Items {
+					ml[proj.Crunchbase] = true
+				}
+			}
+		}
+	}
+	return ml
+}
+
+func getProject(project, crunchbase string, ml map[string]bool) string {
+	if project != "" {
+		return project
+	}
+	if _, ok := ml[crunchbase]; ok {
+		return "member"
+	}
+	return ""
+}
+
+func getStarCount(repoUrl string) int64 {
+	if repoUrl == "" {
+		return 0
+	}
+
+	if v, ok := stars[repoUrl]; ok {
+		return v
+	}
+
+	apiUrl := strings.Replace(repoUrl, "github.com", "api.github.com/repos", 1)
+	fmt.Println(apiUrl)
+	resp, err := client.Get(apiUrl)
+	if err != nil {
+		fmt.Println(err)
+		return 0
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode == http.StatusOK {
+		b, err := ioutil.ReadAll(resp.Body)
+		if err != nil {
+			fmt.Println(err)
+			return 0
+		}
+		c := gjson.GetBytes(b, "stargazers_count").Int()
+		stars[repoUrl] = c
+		return c
+	}
+	return 0
 }

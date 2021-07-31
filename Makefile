@@ -7,5 +7,5 @@ build-server:
 run:
 	bash ./scripts/run.sh
 
-test:
+run-test:
 	bash ./scripts/test.sh

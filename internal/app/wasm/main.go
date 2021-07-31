@@ -34,11 +34,11 @@ func load() {
 		return
 	}
 
-	//pmap := splitByRelation(projects)
 	loadByRelation("CNCF Graduated Projects", filterByRelation(projects, "graduated"))
 	loadByRelation("CNCF Incubating Projects", filterByRelation(projects, "incubating"))
 	loadByRelation("CNCF Sandbox Projects", filterByRelation(projects, "sandbox"))
-	loadByRelation("Others", filterByRelation(projects, ""))
+	loadByRelation("CNCF Member Products/Projects", filterByRelation(projects, "member"))
+	loadByRelation("Non-CNCF Member Products/Projects", filterByRelation(projects, ""))
 }
 
 func loadByRelation(rel string, projects Projects) {
@@ -48,7 +48,7 @@ func loadByRelation(rel string, projects Projects) {
 
 	relationDiv := document.Call("createElement", "div")
 	relationDiv.Get("classList").Call("add", "relation")
-	relationDiv.Set("textContent", rel + " (" + strconv.Itoa(len(projects)) + ")")
+	relationDiv.Set("textContent", rel+" ("+strconv.Itoa(len(projects))+")")
 	app.Call("appendChild", relationDiv)
 
 	landscapeDiv := document.Call("createElement", "div")
@@ -82,57 +82,43 @@ func filterByRelation(projects Projects, relation string) Projects {
 	return filtered
 }
 
-//func splitByRelation(projects Projects) map[string]Projects {
-//	var pmap map[string]Projects
-//	for _, proj := range projects {
-//		switch proj.Project {
-//		case "graduated":
-//			addProjectToMap(pmap, "graduated", proj)
-//		case "incubating":
-//			addProjectToMap(pmap, "incubating", proj)
-//		case "sandbox":
-//			addProjectToMap(pmap, "sandbox", proj)
-//		default:
-//			addProjectToMap(pmap, "others", proj)
-//		}
-//	}
-//	return pmap
-//}
-
-//func addProjectToMap(pmap map[string]Projects, relation string, proj Project) {
-//	v, ok := pmap[relation]
-//	if ok {
-//		v = append(v, proj)
-//	} else {
-//		pmap[relation] = Projects{proj}
-//	}
-//}
-
 func createItem(proj Project) js.Value {
 	item := document.Call("createElement", "div")
 	item.Get("classList").Call("add", "item")
 
-	text := proj.RepoUrl
-	if text == "" {
-		text = proj.HomepageUrl
-	}
-	itemLink := document.Call("createElement", "a")
-	itemLink.Set("href", text)
-
-	itemTitle := document.Call("createElement", "div")
-	itemTitle.Set("textContent", fmt.Sprintf("%s", proj.Name))
-	itemTitle.Get("classList").Call("add", "item-title")
-
-	text = proj.Description
-	if text == "" {
-		text = "No Description"
-	}
-	itemDescription := document.Call("createElement", "div")
-	itemDescription.Set("textContent", text)
-	itemDescription.Get("classList").Call("add", "item-description")
-
+	itemLink := createHrefContent(proj)
 	item.Call("appendChild", itemLink)
-	itemLink.Call("appendChild", itemTitle)
-	itemLink.Call("appendChild", itemDescription)
+
+	if proj.Description == "" {
+		itemLink.Call("appendChild", createTextContent(getTitle(proj), "item-title-only"))
+	} else {
+		itemLink.Call("appendChild", createTextContent(getTitle(proj), "item-title"))
+		itemLink.Call("appendChild", createTextContent(proj.Description, "item-description"))
+	}
+
 	return item
+}
+
+func createTextContent(txt, cls string) js.Value {
+	item := document.Call("createElement", "div")
+	item.Set("textContent", fmt.Sprintf("%s", txt))
+	item.Get("classList").Call("add", cls)
+	return item
+}
+
+func createHrefContent(proj Project) js.Value {
+	url := proj.RepoUrl
+	if url == "" {
+		url = proj.HomepageUrl
+	}
+	item := document.Call("createElement", "a")
+	item.Set("href", url)
+	return item
+}
+
+func getTitle(proj Project) string {
+	if proj.StarCount == 0 {
+		return proj.Name
+	}
+	return fmt.Sprintf("%s (☆%d)", proj.Name, proj.StarCount)
 }
