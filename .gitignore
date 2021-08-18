@@ -14,5 +14,7 @@
 # Dependency directories (remove the comment below to include it)
 # vendor/
 
-web/static/main.wasm
+.DS_Store
+
+# web/static/main.wasm
 server-run
