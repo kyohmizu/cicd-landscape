@@ -4,6 +4,12 @@ h1{
     color: #111111;
 }
 
+.img-header{
+    position: absolute;
+    left: 10px;
+    top: 10px;
+}
+
 .relation{
     text-align: center;
 }

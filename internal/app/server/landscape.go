@@ -48,6 +48,7 @@ type SubItem struct {
 	Project     string
 	RepoUrl     string `yaml:"repo_url"`
 	Logo        string
+	Twitter     string
 	Crunchbase  string
 }
 
